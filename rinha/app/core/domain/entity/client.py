@@ -3,11 +3,20 @@
 from pydantic import BaseModel
 
 
-class ClientEntity(BaseModel):
-    name: str
-    amount: int
+
+class AccountEntity(BaseModel):
     limit: int
     balance: int
 
-    def amount_to_real(self):
-        return self.amount / 100
+    def credit(self, value: int):
+        self.balance += value
+
+    def debit(self, value: int):
+        if self.balance - value < -self.limit:
+            raise ValueError("The value is greater than the limit")
+        self.balance -= value
+
+
+class ClientEntity(BaseModel):
+    name: str
+    account: AccountEntity

@@ -18,7 +18,6 @@ class Settings(BaseSettings):
             return v
         raise ValueError(v)
 
-    POSTGRES_SERVER: str
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str

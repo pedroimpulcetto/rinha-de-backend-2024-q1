@@ -1,7 +1,7 @@
 
 
 from app.api.dto.input.transaction import TransactionIn, TransactionTypeIn
-from app.core.domain.entity.client import ClientEntity
+from app.core.domain.entity.client import AccountEntity, ClientEntity
 from app.core.infra.db.client import ClientDatabase
 
 """
@@ -17,12 +17,25 @@ class CreateTransaction:
     def execute(self, client_id: int, transaction: TransactionIn):
         client = self.client_db.get_client(client_id)
         if not client:
-            raise ValueError("Client not found")
-      
-        if transaction.type == TransactionTypeIn.DEBIT and client.saldo - transaction.amount < -client.limite:
-            raise ValueError("Insufficient funds")
-        
-        client.saldo += transaction.amount if transaction.type == TransactionTypeIn.CREDIT else -transaction.amount
+            raise IndexError("Client not found")
+
+        account = AccountEntity(
+            limit=client.limite,
+            balance=client.saldo
+        )
+
+        client_entity = ClientEntity(
+            name=client.nome,
+            account=account
+        )
+
+        if transaction.type == TransactionTypeIn.CREDIT:
+            client_entity.account.credit(transaction.amount)
+        else:
+            client_entity.account.debit(transaction.amount)
+
+        client.saldo = client_entity.account.balance
         self.client_db.update_client(client)
+        self.client_db.save_transaction(client_id, transaction)
         return {"limite": client.limite, "saldo": client.saldo}
         

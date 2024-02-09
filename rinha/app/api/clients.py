@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response, status
 from pydantic import PositiveInt
 
 from app.api.dto.input.transaction import TransactionIn
 from app.api.dto.output.statement import StatementOut
 from app.api.dto.output.transaction import TransactionOut
 from app.core.domain.usecase.create_transaction import CreateTransaction
+from app.core.domain.usecase.get_statement import GetStatement
 from app.core.infra.db.client import ClientDatabase
 from app.database import SessionLocal, get_db
 
@@ -56,16 +57,24 @@ router = APIRouter(
     tags=["clientes"],
 )
 
-@router.post("/{id}/transacoes")
+@router.post("/{id}/transacoes", status_code=status.HTTP_200_OK)
 async def create_transaction(
+    id: PositiveInt,
     transaction: TransactionIn,
-    client_id: PositiveInt = Query(alias='id', description="id do cliente"),
-    db: SessionLocal = Depends(get_db)
+    response: Response,
+    db: SessionLocal = Depends(get_db), # type: ignore
 ):
     client_db = ClientDatabase(db)
     
     usecase = CreateTransaction(client_db)
-    result = usecase.execute(client_id, transaction)
+    try:
+        result = usecase.execute(id, transaction)
+    except IndexError as e:
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return response
+    except ValueError as e:
+        response.status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+        return response
     return TransactionOut(limite=result['limite'], saldo=result['saldo'])
 
 
@@ -118,25 +127,16 @@ Regras Se o atributo [id] da URL for de uma identificação não existente de cl
 """
 
 @router.get("/{id}/extrato")
-async def get_statement(id: int):
-    return StatementOut(
-        saldo={
-            "total": -9098,
-            "data_extrato": "2024-01-17T02:34:41.217753Z",
-            "limite": 100000
-        },
-        ultimas_transacoes=[
-            {
-                "valor": 10,
-                "tipo": "c",
-                "descricao": "descricao",
-                "realizada_em": "2024-01-17T02:34:38.543030Z"
-            },
-            {
-                "valor": 90000,
-                "tipo": "d",
-                "descricao": "descricao",
-                "realizada_em": "2024-01-17T02:34:38.543030Z"
-            }
-        ]
-    )
+async def get_statement(
+    id: PositiveInt,
+    response: Response,
+    db: SessionLocal = Depends(get_db), # type: ignore
+):
+    client_db = ClientDatabase(db)
+    usecase = GetStatement(client_db)
+    try:
+        result = usecase.execute(id)
+    except IndexError as e:
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return response
+    return result
